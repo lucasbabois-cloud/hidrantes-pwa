@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Hidrantes Maldonado — Ruta vía hidrante</title>
+  <title>Hidrantes Maldonado — Retículo</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <meta name="theme-color" content="#0ea5e9"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -11,51 +11,70 @@
   <style>
     html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
     #app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
-    header { padding: .6rem 1rem; display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; box-shadow: 0 1px 6px rgba(0,0,0,.08); position: sticky; top: 0; background: white; z-index: 10000; }
-    header > * { margin: 0; }
-    .btn { padding: .9rem 1rem; border-radius: .8rem; border: 1px solid #ddd; background: #f8f8f8; cursor: pointer; font-size: 1rem; touch-action: manipulation; }
-    .btn.primary { background: #0ea5e9; color: white; border-color: #0ea5e9; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .status-chip { display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .5rem; border:1px solid #e5e7eb; border-radius:999px; background:white; }
-    .sep { width:1px; height:24px; background:#e5e7eb; }
+    header { padding: .6rem .8rem; display: grid; gap: .6rem; grid-template-columns: 1fr; align-items: center; box-shadow: 0 1px 6px rgba(0,0,0,.08); position: sticky; top: 0; background: white; z-index: 10000; }
+    .row { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    .btn { padding: 1rem 1.1rem; border-radius: 14px; border: 1px solid #e5e7eb; background: #0ea5e9; color: white; font-weight: 600; cursor: pointer; font-size: 1rem; touch-action: manipulation; transform: translateZ(0); transition: transform .06s ease, box-shadow .12s ease; box-shadow: 0 6px 14px rgba(14,165,233,.25); }
+    .btn.secondary { background: white; color: #0f172a; }
+    .btn:active { transform: scale(.96); }
+    .btn.bounce { animation: tap .14s ease; }
+    @keyframes tap { 0%{transform:scale(1)} 50%{transform:scale(.95)} 100%{transform:scale(1)} }
+    .chip { display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:999px; background:white; font-size:.95rem; }
     #map { height: 100%; position: relative; z-index: 0; }
-    .leaflet-control-container { z-index: 400; }
+    .reticle {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 24px; height: 24px; border: 2px solid #0ea5e9; border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(14,165,233,.25);
+      background: rgba(255,255,255,.6); backdrop-filter: blur(2px);
+      z-index: 9000; pointer-events: none;
+    }
+    .reticle:after {
+      content: ""; position:absolute; left:50%; top:50%; width:14px; height:2px; background:#0ea5e9; transform: translate(-50%,-50%);
+    }
+    .legend { position: absolute; bottom: 12px; left: 12px; background: white; padding: .6rem .7rem; border-radius: .6rem; border: 1px solid #e5e7eb; box-shadow: 0 2px 12px rgba(0,0,0,.08); font-size: .9rem; z-index: 8000; }
+    .legend-row { display: grid; grid-template-columns: 22px 1fr; gap: .5rem; align-items: center; margin: .15rem 0; }
+    .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #0f172a10; display: grid; place-items: center; background: white; }
+    .mini { width: 12px; height: 12px; border-radius: 50%; display:inline-block; margin-right:.25rem; }
+    .toast { position:fixed; top:12px; right:12px; background:rgba(0,0,0,.84); color:white; padding:.6rem .8rem; border-radius:.6rem; font-size:.95rem; z-index: 12000; pointer-events:none; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
     @media (max-width: 640px) {
       .btn { flex: 1 1 auto; }
+      header { padding: .6rem .6rem; }
     }
   </style>
 </head>
 <body>
   <div id="app">
     <header>
-      <div class="panel" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:center">
-        <button id="setStart" type="button" class="btn">Fijar inicio</button>
-        <button id="setStartGPS" type="button" class="btn">Usar mi ubicación</button>
-        <button id="setEnd" type="button" class="btn">Fijar destino</button>
-        <button id="setEndGPS" type="button" class="btn">Usar mi ubicación</button>
-        <button id="routeBtn" type="button" class="btn primary" disabled>Rutar por hidrante más cercano</button>
-        <button id="clearBtn" type="button" class="btn" disabled>Limpiar</button>
-        <span class="sep"></span>
-        <div class="status-chip"><span class="dot" style="width:12px;height:12px;border-radius:50%;background:#ef4444;display:inline-block"></span> Mal</div>
-        <div class="status-chip"><span class="dot" style="width:12px;height:12px;border-radius:50%;background:#f59e0b;display:inline-block"></span> Mantenimiento</div>
-        <div class="status-chip"><span class="dot" style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block"></span> Bueno</div>
-        <div class="status-chip"><span class="dot" style="width:12px;height:12px;border-radius:50%;background:#3b82f6;display:inline-block"></span> Excelente</div>
+      <div class="row">
+        <button id="setStartHere" type="button" class="btn">Fijar INICIO aquí</button>
+        <button id="setEndHere" type="button" class="btn">Fijar DESTINO aquí</button>
       </div>
-      <div class="panel" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:center">
-        <strong>Usar estados:</strong>
-        <label><input type="checkbox" class="stateFilter" value="mal" checked> Mal</label>
-        <label><input type="checkbox" class="stateFilter" value="mantenimiento" checked> Mantenimiento</label>
-        <label><input type="checkbox" class="stateFilter" value="bueno" checked> Bueno</label>
-        <label><input type="checkbox" class="stateFilter" value="excelente" checked> Excelente</label>
+      <div class="row">
+        <button id="useMyLocationStart" type="button" class="btn secondary">Usar mi ubicación para INICIO</button>
+        <button id="useMyLocationEnd" type="button" class="btn secondary">Usar mi ubicación para DESTINO</button>
+      </div>
+      <div class="row">
+        <button id="routeBtn" type="button" class="btn">Rutar por hidrante cercano</button>
+        <button id="clearBtn" type="button" class="btn secondary">Limpiar</button>
+        <span class="chip"><span class="mini" style="background:#ef4444"></span> Mal</span>
+        <span class="chip"><span class="mini" style="background:#f59e0b"></span> Mantenimiento</span>
+        <span class="chip"><span class="mini" style="background:#22c55e"></span> Bueno</span>
+        <span class="chip"><span class="mini" style="background:#3b82f6"></span> Excelente</span>
       </div>
     </header>
     <div id="map"></div>
+    <div class="reticle" aria-hidden="true"></div>
+    <div class="legend">
+      <div class="legend-row"><span class="dot" style="border-color:#ef44441a"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="white"/><circle cx="12" cy="12" r="9" fill="none" stroke="#ef4444" stroke-width="2"/></svg></span>Mal</div>
+      <div class="legend-row"><span class="dot" style="border-color:#f59e0b1a"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="white"/><circle cx="12" cy="12" r="9" fill="none" stroke="#f59e0b" stroke-width="2"/></svg></span>Mantenimiento</div>
+      <div class="legend-row"><span class="dot" style="border-color:#22c55e1a"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="white"/><circle cx="12" cy="12" r="9" fill="none" stroke="#22c55e" stroke-width="2"/></svg></span>Bueno</div>
+      <div class="legend-row"><span class="dot" style="border-color:#3b82f61a"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="white"/><circle cx="12" cy="12" r="9" fill="none" stroke="#3b82f6" stroke-width="2"/></svg></span>Excelente</div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
   <script>
-    const CENTER = [-34.905, -54.948];
+    const CENTER = [-34.905, -54.948]; // Maldonado
 
     const hidrantes = [
       { id: 'H-001', lat: -34.9075, lng: -54.9512, estado: 'excelente' },
@@ -79,38 +98,34 @@
     ];
 
     const estadoColor = {
-      mal: '#ef4444',
-      mantenimiento: '#f59e0b',
-      bueno: '#22c55e',
-      excelente: '#3b82f6'
+      mal: '#ef4444', mantenimiento: '#f59e0b', bueno: '#22c55e', excelente: '#3b82f6'
     };
 
-    const map = L.map('map').setView(CENTER, 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+    const map = L.map('map', { tap: true }).setView(CENTER, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
 
+    // Hydrant icon as white circular badge + outline
     function hydrantIcon(estado){
-      const color = estadoColor[estado] || '#3b82f6';
+      const stroke = estadoColor[estado] || '#3b82f6';
       const svg = encodeURIComponent(`
-        <svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24'>
-          <g fill='none' stroke='${color}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
-            <path d='M8 7h8' />
-            <path d='M7 10h10' />
-            <path d='M9 14h6' />
-            <path d='M12 3v2' />
-            <path d='M12 19v2' />
-            <rect x='9' y='7' width='6' height='8' rx='1' fill='${color}' opacity='0.2' />
-            <circle cx='12' cy='11' r='1.8' fill='white'/>
+        <svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'>
+          <circle cx='18' cy='18' r='16' fill='white' stroke='${stroke}' stroke-width='3'/>
+          <g transform='translate(6,6)' fill='none' stroke='${stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+            <path d='M6 4h12' />
+            <path d='M5 8h14' />
+            <path d='M8 12h8' />
+            <path d='M12 0v2' />
+            <path d='M12 16v2' />
+            <rect x='9' y='4' width='6' height='8' rx='1' fill='${stroke}' opacity='0.18' />
+            <circle cx='12' cy='8' r='1.8' fill='white'/>
           </g>
         </svg>`);
       return L.divIcon({
         className: 'hydrant-icon',
         html: `<img alt="hidrante ${estado}" src="data:image/svg+xml;utf8,${svg}">`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 26],
-        popupAnchor: [0, -24]
+        iconSize: [36, 36],
+        iconAnchor: [18, 33],
+        popupAnchor: [0, -28]
       });
     }
 
@@ -139,19 +154,12 @@
       } catch(e){ return null; }
     }
 
+    // Render markers
     let hydrantMarkers = [];
-    function getAllowedStates(){
-      const s = new Set();
-      document.querySelectorAll('.stateFilter').forEach(cb => { if (cb.checked) s.add(cb.value); });
-      return s;
-    }
-
     function renderHydrants() {
       hydrantMarkers.forEach(m => map.removeLayer(m));
       hydrantMarkers = [];
-      const allowed = getAllowedStates();
       hidrantes.forEach(h => {
-        if (!allowed.has(h.estado)) return;
         const marker = L.marker([h.lat, h.lng], { icon: hydrantIcon(h.estado), keyboard: true }).addTo(map);
         marker.on('click', async () => {
           marker.bindPopup(`<strong>${h.id}</strong><br>Estado: ${h.estado}<br><em>Buscando intersección...</em>`).openPopup();
@@ -162,92 +170,40 @@
         hydrantMarkers.push(marker);
       });
     }
-
-    document.querySelectorAll('.stateFilter').forEach(cb => cb.addEventListener('change', renderHydrants));
     renderHydrants();
 
-    let pickMode = null;
-    let startMarker = null, endMarker = null;
-    let routingControl = null;
+    // Visual feedback helper
+    function bounce(el){ el.classList.remove('bounce'); void el.offsetWidth; el.classList.add('bounce'); }
 
-    const setStartBtn = document.getElementById('setStart');
-    const setStartGPSBtn = document.getElementById('setStartGPS');
-    const setEndBtn = document.getElementById('setEnd');
-    const setEndGPSBtn = document.getElementById('setEndGPS');
-    const routeBtn = document.getElementById('routeBtn');
-    const clearBtn = document.getElementById('clearBtn');
+    // Reticle helpers
+    function mapCenterLatLng(){ const c = map.getCenter(); return {lat: c.lat, lng: c.lng}; }
 
-    function activate(mode, msg, ev){
-      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-      pickMode = mode;
-      toast(msg);
-    }
+    let startMarker = null, endMarker = null, routingControl = null;
 
-    setStartBtn.addEventListener('click', (e)=>activate('start','Tocá el mapa para fijar INICIO', e));
-    setStartBtn.addEventListener('pointerup', (e)=>activate('start','Tocá el mapa para fijar INICIO', e));
-
-    setEndBtn.addEventListener('click', (e)=>activate('end','Tocá el mapa para fijar DESTINO', e));
-    setEndBtn.addEventListener('pointerup', (e)=>activate('end','Tocá el mapa para fijar DESTINO', e));
-
-    function geo(place, e){
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      if (!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
-      navigator.geolocation.getCurrentPosition(pos => {
-        const lat = pos.coords.latitude, lng = pos.coords.longitude;
-        if (place==='start'){
-          if (startMarker) map.removeLayer(startMarker);
-          startMarker = L.marker([lat,lng], { draggable:true }).addTo(map).bindPopup('Inicio (GPS)').openPopup();
-        }else{
-          if (endMarker) map.removeLayer(endMarker);
-          endMarker = L.marker([lat,lng], { draggable:true }).addTo(map).bindPopup('Destino (GPS)').openPopup();
-        }
-        map.setView([lat,lng], 15, {animate:true});
-        updateButtons();
-      }, err => { toast('No se pudo obtener ubicación'); }, { enableHighAccuracy:true, timeout:8000, maximumAge:2000 });
-    }
-    setStartGPSBtn.addEventListener('click', (e)=>geo('start', e));
-    setStartGPSBtn.addEventListener('pointerup', (e)=>geo('start', e));
-    setEndGPSBtn.addEventListener('click', (e)=>geo('end', e));
-    setEndGPSBtn.addEventListener('pointerup', (e)=>geo('end', e));
-
-    map.on('click', (e) => {
-      if (!pickMode) return;
-      const { lat, lng } = e.latlng;
-      if (pickMode === 'start') {
+    function setPoint(which){
+      const {lat, lng} = mapCenterLatLng();
+      if (which === 'start'){
         if (startMarker) map.removeLayer(startMarker);
         startMarker = L.marker([lat, lng], { draggable: true }).addTo(map).bindPopup('Inicio').openPopup();
-        startMarker.on('dragend', updateButtons);
       } else {
         if (endMarker) map.removeLayer(endMarker);
         endMarker = L.marker([lat, lng], { draggable: true }).addTo(map).bindPopup('Destino').openPopup();
-        endMarker.on('dragend', updateButtons);
       }
-      pickMode = null;
-      updateButtons();
-    });
+    }
 
-    map.on('touchend', (e) => {
-      if (pickMode && !e.latlng) {
-        const c = map.getCenter();
-        const lat = c.lat, lng = c.lng;
-        if (pickMode === 'start') {
+    function geo(which){
+      if (!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
+      navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        map.setView([lat,lng], 15, {animate:true});
+        if (which === 'start'){
           if (startMarker) map.removeLayer(startMarker);
-          startMarker = L.marker([lat, lng], { draggable: true }).addTo(map).bindPopup('Inicio').openPopup();
-          startMarker.on('dragend', updateButtons);
+          startMarker = L.marker([lat, lng], { draggable: true }).addTo(map).bindPopup('Inicio (GPS)').openPopup();
         } else {
           if (endMarker) map.removeLayer(endMarker);
-          endMarker = L.marker([lat, lng], { draggable: true }).addTo(map).bindPopup('Destino').openPopup();
-          endMarker.on('dragend', updateButtons);
+          endMarker = L.marker([lat, lng], { draggable: true }).addTo(map).bindPopup('Destino (GPS)').openPopup();
         }
-        pickMode = null;
-        updateButtons();
-      }
-    });
-
-    function updateButtons(){
-      const ready = !!(startMarker && endMarker);
-      routeBtn.disabled = !ready;
-      clearBtn.disabled = !(startMarker || endMarker || routingControl);
+      }, _ => toast('No se pudo obtener ubicación'), { enableHighAccuracy:true, timeout:8000, maximumAge:2000 });
     }
 
     function haversine(a, b){
@@ -261,91 +217,78 @@
     }
 
     function nearestHydrant(point){
-      const allowed = getAllowedStates();
       let best = null, bestD = Infinity;
       hidrantes.forEach(h => {
-        if (!allowed.has(h.estado)) return;
         const d = haversine(point, {lat: h.lat, lng: h.lng});
         if (d < bestD){ best = h; bestD = d; }
       });
       return best;
     }
 
-    function routeNow(e){
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      if (!startMarker || !endMarker) return;
+    async function routeNow(){
+      if (!startMarker || !endMarker){ toast('Fijá INICIO y DESTINO'); return; }
       const start = startMarker.getLatLng();
       const end = endMarker.getLatLng();
       const h = nearestHydrant({lat: start.lat, lng: start.lng});
-      if (!h){ toast('No hay hidrantes que coincidan con los estados seleccionados.'); return; }
+      if (!h){ toast('No hay hidrantes disponibles'); return; }
 
       if (routingControl) { map.removeControl(routingControl); routingControl = null; }
 
       routingControl = L.Routing.control({
         waypoints: [ L.latLng(start.lat, start.lng), L.latLng(h.lat, h.lng), L.latLng(end.lat, end.lng) ],
         router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-        show: false,
-        routeWhileDragging: false,
-        addWaypoints: false,
-        collapsible: true,
+        show: false, routeWhileDragging: false, addWaypoints: false, collapsible: true,
         lineOptions: { addWaypoints: false }
       }).addTo(map);
 
-      (async () => {
-        const inter = await obtenerInterseccion(h.lat, h.lng);
-        const interText = inter ? (inter.secondary ? `${inter.primary} y ${inter.secondary}` : `${inter.primary}`) : 'Intersección no disponible';
-        L.popup({ offset: [0,-8] })
-          .setLatLng([h.lat, h.lng])
-          .setContent(`<strong>Hidrante elegido:</strong> ${h.id} (${h.estado})<br>Intersección: ${interText}`)
-          .openOn(map);
-      })();
-
-      updateButtons();
+      const inter = await obtenerInterseccion(h.lat, h.lng);
+      const interText = inter ? (inter.secondary ? `${inter.primary} y ${inter.secondary}` : `${inter.primary}`) : 'Intersección no disponible';
+      L.popup({ offset: [0,-8] })
+        .setLatLng([h.lat, h.lng])
+        .setContent(`<strong>Hidrante elegido:</strong> ${h.id} (${h.estado})<br>Intersección: ${interText}`)
+        .openOn(map);
     }
 
-    routeBtn.addEventListener('click', routeNow);
-    routeBtn.addEventListener('pointerup', routeNow);
-
-    function clearAll(e){
-      if (e) { e.preventDefault(); e.stopPropagation(); }
+    function clearAll(){
       if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
       if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
       if (routingControl) { map.removeControl(routingControl); routingControl = null; }
-      updateButtons();
     }
-    clearBtn.addEventListener('click', clearAll);
-    clearBtn.addEventListener('pointerup', clearAll);
 
-    // Toast (no bloquea toques)
+    // Wire buttons with visual feedback
+    const setStartHereBtn = document.getElementById('setStartHere');
+    const setEndHereBtn = document.getElementById('setEndHere');
+    const useMyLocationStartBtn = document.getElementById('useMyLocationStart');
+    const useMyLocationEndBtn = document.getElementById('useMyLocationEnd');
+    const routeBtn = document.getElementById('routeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function bindTap(btn, fn){
+      const handler = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); bounce(btn); fn(); };
+      btn.addEventListener('click', handler, {passive:false});
+      btn.addEventListener('pointerup', handler, {passive:false});
+      btn.addEventListener('touchend', handler, {passive:false});
+    }
+
+    bindTap(setStartHereBtn, ()=>setPoint('start'));
+    bindTap(setEndHereBtn, ()=>setPoint('end'));
+    bindTap(useMyLocationStartBtn, ()=>geo('start'));
+    bindTap(useMyLocationEndBtn, ()=>geo('end'));
+    bindTap(routeBtn, routeNow);
+    bindTap(clearBtn, clearAll);
+
+    // Toast utility
     let toastEl = null; let toastTimer = null;
     function toast(msg){
       if (!toastEl){
         toastEl = document.createElement('div');
-        toastEl.setAttribute('role','status');
-        toastEl.style.position = 'absolute';
-        toastEl.style.top = '12px';
-        toastEl.style.right = '12px';
-        toastEl.style.background = 'rgba(0,0,0,.8)';
-        toastEl.style.color = 'white';
-        toastEl.style.padding = '.5rem .7rem';
-        toastEl.style.borderRadius = '.5rem';
-        toastEl.style.boxShadow = '0 4px 16px rgba(0,0,0,.25)';
-        toastEl.style.fontSize = '.95rem';
-        toastEl.style.zIndex = 20000;
-        toastEl.style.pointerEvents = 'none';
+        toastEl.className = 'toast';
         document.body.appendChild(toastEl);
       }
       toastEl.textContent = msg;
       toastEl.style.opacity = '1';
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        if (toastEl) {
-          toastEl.style.opacity = '0';
-          setTimeout(()=>{
-            if (toastEl && toastEl.parentNode){ toastEl.parentNode.removeChild(toastEl); toastEl = null; }
-          }, 350);
-        }
-      }, 3000);
+      toastTimer = setTimeout(() => { if (toastEl){ toastEl.style.opacity = '0'; } }, 2600);
     }
 
     if ('serviceWorker' in navigator) {
@@ -354,7 +297,7 @@
       });
     }
 
-    toast('Tocá INICIO/DESTINO o usá “mi ubicación”.');
+    toast('Mové el mapa: el retículo marca la posición. Usá los botones para fijar puntos.');
   </script>
 </body>
 </html>
